@@ -122,6 +122,75 @@ func TestBasic(t *testing.T) {
 	testRaw(t, setString, `{"a":"C:\\Windows\\System32"}`, ``, `a`, `C:\Windows\System32`)
 }
 
+func TestEmptyObjectKey(t *testing.T) {
+	tests := []struct {
+		name, input, path, output string
+	}{
+		{"only", `{"":1}`, "", `{}`},
+		{"first", `{"":1,"a":2}`, "", `{"a":2}`},
+		{"middle", `{"a":1,"":2,"b":3}`, "", `{"a":1,"b":3}`},
+		{"last", `{"a":1,"":2}`, "", `{"a":1}`},
+		{"null", `{"":null}`, "", `{}`},
+		{"missing", `{"a":1}`, "", `{"a":1}`},
+		{"nested", `{"a":{"":1,"b":2}}`, "a.", `{"a":{"b":2}}`},
+		{"empty parent", `{"":{"a":1,"b":2}}`, ".a", `{"":{"b":2}}`},
+		{"array", `[1,2]`, "", `[1,2]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testRaw(t, setDelete, tt.output, tt.input, tt.path, nil)
+		})
+	}
+
+	testRaw(t, setString, `{"":"value"}`, `{}`, "", "value")
+	testRaw(t, setString, `{"":"value"}`, `{"":null}`, "", "value")
+	testRaw(t, setRaw, `{"":{"a":1}}`, `{}`, "", `{"a":1}`)
+	testRaw(t, setString, `{"":"value"}`, ``, "", "value")
+	testRaw(t, setString, `{"a":{"":"value"}}`, `{}`, "a.", "value")
+	testRaw(t, setString, `{"":{"a":"value"}}`, `{}`, ".a", "value")
+}
+
+func TestEmptyObjectKeyOptions(t *testing.T) {
+	for _, opts := range []Options{
+		{},
+		{Optimistic: true},
+		{Optimistic: true, ReplaceInPlace: true},
+	} {
+		t.Run(fmt.Sprintf("%+v", opts), func(t *testing.T) {
+			const input = `{"":"original","a":1}`
+			const want = `{"":"new","a":1}`
+			got, err := SetOptions(input, "", "new", &opts)
+			if err != nil || got != want {
+				t.Fatalf("SetOptions: got %q, %v; want %q", got, err, want)
+			}
+			gotBytes, err := SetBytesOptions([]byte(input), "", "new", &opts)
+			if err != nil || string(gotBytes) != want {
+				t.Fatalf("SetBytesOptions: got %q, %v; want %q", gotBytes, err, want)
+			}
+			got, err = SetRawOptions(input, "", `"new"`, &opts)
+			if err != nil || got != want {
+				t.Fatalf("SetRawOptions: got %q, %v; want %q", got, err, want)
+			}
+			gotBytes, err = SetRawBytesOptions([]byte(input), "", []byte(`"new"`), &opts)
+			if err != nil || string(gotBytes) != want {
+				t.Fatalf("SetRawBytesOptions: got %q, %v; want %q", gotBytes, err, want)
+			}
+			got, err = DeleteOptions(input, "", &opts)
+			if err != nil || got != `{"a":1}` {
+				t.Fatalf("DeleteOptions: got %q, %v", got, err)
+			}
+			gotBytes, err = DeleteBytesOptions([]byte(input), "", &opts)
+			if err != nil || string(gotBytes) != `{"a":1}` {
+				t.Fatalf("DeleteBytesOptions: got %q, %v", gotBytes, err)
+			}
+			got, err = SetOptions(`[1,2]`, "", "new", &opts)
+			if err == nil || got != `[1,2]` {
+				t.Fatalf("SetOptions on array: got %q, %v; want unchanged array and an error", got, err)
+			}
+		})
+	}
+}
+
 func TestDelete(t *testing.T) {
 	testRaw(t, setDelete, `[456]`, `[123,456]`, `0`, nil)
 	testRaw(t, setDelete, `[123,789]`, `[123,456,789]`, `1`, nil)

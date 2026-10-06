@@ -60,6 +60,9 @@ Path syntax
 A path is a series of keys separated by a dot.
 The dot and colon characters can be escaped with ``\``.
 
+An empty path addresses an empty object key (`""`). Empty keys can also appear
+in a nested path: `"name."` addresses the empty key inside the `"name"` object.
+
 ```json
 {
   "name": {"first": "Tom", "last": "Anderson"},
